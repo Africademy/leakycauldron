@@ -1,6 +1,5 @@
 package com.trib3.server.filters
 
-import mu.KotlinLogging
 import org.slf4j.MDC
 import java.util.UUID
 import javax.servlet.Filter
@@ -8,9 +7,8 @@ import javax.servlet.FilterChain
 import javax.servlet.FilterConfig
 import javax.servlet.ServletRequest
 import javax.servlet.ServletResponse
+import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
-
-private val log = KotlinLogging.logger { }
 
 /**
  * A Filter that decorates the logging context MDC with a unique
@@ -77,11 +75,15 @@ class RequestIdFilter : Filter {
     override fun destroy() = Unit
 
     override fun doFilter(request: ServletRequest, response: ServletResponse, chain: FilterChain) {
-        withRequestId {
-            when (response) {
-                is HttpServletResponse -> response.setHeader(REQUEST_ID_HEADER, getRequestId())
-                else -> log.warn("Couldn't set request id header for {}", response::class.java)
+        val clientUUID = try {
+            (request as? HttpServletRequest)?.getHeader(REQUEST_ID_HEADER)?.let {
+                UUID.fromString(it).toString()
             }
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+        withRequestId(clientUUID) {
+            (response as? HttpServletResponse)?.setHeader(REQUEST_ID_HEADER, getRequestId())
             chain.doFilter(request, response)
         }
     }
